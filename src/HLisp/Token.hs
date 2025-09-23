@@ -16,4 +16,4 @@ data Token
     | TokNumber Integer -- numeric literals
     | TokString Text -- string literals "hello"
     | TokBool Bool -- boolean literals #t and #f
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)

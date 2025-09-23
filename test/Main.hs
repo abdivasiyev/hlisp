@@ -1,6 +1,7 @@
 module Main (main) where
 
-import Lexer (tests)
+import Lexer qualified as L
+import Parser qualified as P
 import Test.Tasty (defaultMain, testGroup)
 
 main :: IO ()
@@ -8,5 +9,6 @@ main =
     defaultMain $
         testGroup
             "HLisp Tests"
-            [ tests
+            [ L.tests
+            , P.tests
             ]

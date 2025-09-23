@@ -64,7 +64,11 @@ parseBool = (Tok.TokBool True <$ symbol' "#t") <|> (Tok.TokBool False <$ symbol'
 
 -- | Parses a number (integer)
 parseNumber :: Parser Tok.Token
-parseNumber = Tok.TokNumber <$> L.signed sc (lexeme L.decimal)
+parseNumber = lexeme . try $ do
+  sign <- optional (char '-')
+  digits <- some digitChar
+  let num = read digits :: Integer
+  pure . Tok.TokNumber . maybe num (const (negate num)) $ sign
 
 -- | Parses a string literal enclosed in double quotes
 parseString :: Parser Tok.Token
