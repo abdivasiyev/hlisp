@@ -30,6 +30,8 @@ baseEnv = M.fromList primitives
 
 newtype Primitive = Primitive {runPrimitive :: [Value] -> EvalT Value}
 
+type SpecialForm = [Expr] -> EvalT Value
+
 instance Show Primitive where
     show _ = "<primitive>"
 
@@ -77,18 +79,6 @@ pretty VClosure{} = "<closure>"
 pretty (VPrimitive _) = "<primitive>"
 pretty VNil = "nil"
 
-evalQuote :: Expr -> Value
-evalQuote (ESymbol s) = VSymbol s
-evalQuote (ENumber n) = VNumber n
-evalQuote (EBool b) = VBool b
-evalQuote (EString s) = VString s
-evalQuote (EList xs) = VList (map evalQuote xs)
-evalQuote (EDotted car cdr) =
-    let head' = map evalQuote car
-        tail' = evalQuote cdr
-     in foldr VDotted tail' head'
-evalQuote unknown = error $ "Cannot quote unknown expression: " ++ show unknown
-
 -- | Evaluate an expression in a given environment
 eval :: Expr -> EvalT Value
 eval = \case
@@ -102,13 +92,20 @@ eval = \case
         return $ foldr VDotted cdr' car'
     EList [] -> return $ VList [] -- empty list is a self-evaluating expression
     EList [e] -> eval e -- single element list evaluates to that element, it is because of how parser works
-    EList [ESymbol "quote", expr] -> pure (evalQuote expr)
-    EList [ESymbol "defvar", ESymbol name, expr] -> do
-        val <- eval expr
-        env <- lift get
-        lift $ put (M.insert name val env)
+    -- EList [ESymbol "quote", expr] -> pure (evalQuote expr)
+    -- EList [ESymbol "defvar", ESymbol name, expr] -> do
+    --     val <- eval expr
+    --     env <- lift get
+    --     lift $ put (M.insert name val env)
 
-        pure val
+    --     pure val
+    EList (ESymbol symbol : args) -> do
+        case M.lookup symbol specialForms of
+            Just form -> form args
+            otherwise -> do
+                fnVal <- eval (ESymbol symbol)
+                argVals <- mapM eval args
+                apply fnVal argVals
     EList (fn : args) -> do
         fnVal <- eval fn
         argVals <- mapM eval args
@@ -247,6 +244,37 @@ primitives =
             [v] -> liftIO (print v) >> pure VNil
             _ -> throwError $ "print expects a single argument, got: " ++ show args
         )
+    ]
+
+evalQuote :: Expr -> Value
+evalQuote (ESymbol s) = VSymbol s
+evalQuote (ENumber n) = VNumber n
+evalQuote (EBool b) = VBool b
+evalQuote (EString s) = VString s
+evalQuote (EList xs) = VList (map evalQuote xs)
+evalQuote (EDotted car cdr) =
+    let head' = map evalQuote car
+        tail' = evalQuote cdr
+     in foldr VDotted tail' head'
+evalQuote unknown = error $ "Cannot quote unknown expression: " ++ show unknown
+
+sfQuote :: SpecialForm
+sfQuote [expr] = pure (evalQuote expr)
+sfQuote _ = throwError $ "quote expects only 1 argument"
+
+sfDefvar :: SpecialForm
+sfDefvar [ESymbol name, expr] = do
+    val <- eval expr
+    env <- lift get
+    lift $ put (M.insert name val env)
+
+    pure val
+sfDefvar bad = throwError $ "defvar expects a variable name and expression" <> show bad
+
+specialForms :: M.Map Text SpecialForm
+specialForms = M.fromList
+    [ ("defvar", sfDefvar)
+    , ("quote", sfQuote)
     ]
 
 -- | Run the evaluator with an initial environment and return the result
