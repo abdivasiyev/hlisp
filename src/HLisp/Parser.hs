@@ -25,7 +25,7 @@ data Expr
     | EDotted [Expr] Expr
     | EUnquote Expr
     | EUnquoteSplicing Expr
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 satisfyTok :: (T.Token -> Maybe a) -> Parser a
 satisfyTok f = token f Set.empty

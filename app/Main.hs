@@ -1,10 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import HLisp.Eval
 import HLisp.Parser
+import HLisp.Repl (repl)
 import Text.Pretty.Simple (pPrint)
 
 prog :: Text
@@ -30,6 +33,16 @@ prog =
     , "(print (bin_search searchspace))"
     ]
 
+-- main :: IO ()
+-- main = case parseSrc prog of
+--   Left err -> putStrLn $ "Parse error: " ++ err
+--   Right expr -> do
+--     (result, env) <- runEval baseEnv (eval expr)
+--     case result of
+--       Left evalErr -> putStrLn $ "Evaluation error: " ++ evalErr
+--       Right val -> do
+--         pPrint val
+--         pPrint env
+
 main :: IO ()
-main = do
-  pPrint $ parseSrc prog
+main = repl

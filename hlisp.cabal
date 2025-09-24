@@ -63,6 +63,8 @@ library
             , HLisp.Lexer
             , HLisp.Token
             , HLisp.Parser
+            , HLisp.Eval
+            , HLisp.Repl
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -76,6 +78,9 @@ library
                     , megaparsec
                     , QuickCheck
                     , containers
+                    , transformers
+                    , mtl
+                    , haskeline
 
     -- Directories containing source files.
     hs-source-dirs:   src
