@@ -22,7 +22,7 @@ library
         HLisp.Token
 
     build-depends:
-        , base          ^>=4.18.3.0
+        , base
         , containers
         , haskeline
         , megaparsec
@@ -38,7 +38,7 @@ executable hlisp
     import:           warnings
     main-is:          Main.hs
     build-depends:
-        , base           ^>=4.18.3.0
+        , base
         , hlisp
         , pretty-simple
         , text
@@ -58,7 +58,7 @@ test-suite hlisp-test
         Token
 
     build-depends:
-        , base              ^>=4.18.3.0
+        , base
         , hlisp
         , QuickCheck
         , tasty

@@ -15,7 +15,7 @@ import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
-import Data.Map.Strict qualified as M
+import Data.Map qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 
@@ -297,11 +297,12 @@ sfSetq bad = throwError $ "setq expects a variable name and expression" <> show 
 
 sfDefun :: SpecialForm
 sfDefun (ESymbol name : EList args : body) = do
-    let argNames = [n | ESymbol n <- args]
-    env <- lift get
-    let closure = VClosure argNames body env
-    lift $ put (M.insert name closure env)
-    return closure
+  let argNames = [n | ESymbol n <- args]
+  env <- lift get
+  let env' = M.insert name closure env
+      closure = VClosure argNames body env'
+  lift $ put env'
+  return closure
 sfDefun bad = throwError $ "defun expects a function name, parameter list, and body " ++ show bad
 
 sfReturnFrom :: SpecialForm
@@ -317,12 +318,18 @@ sfReturnFrom [ESymbol name, expr] = do
 sfReturnFrom bad = throwError $ "return-from expects a function name and expression" ++ show bad
 
 sfIf :: SpecialForm
-sfIf (condExpr : thenExpr) = do
+sfIf [condExpr, thenExpr] = do
     condVal <- eval condExpr
 
     case condVal of
-        VBool True -> eval $ EList thenExpr
+        VBool True -> eval thenExpr
         VBool False -> return VNil
+        _ -> throwError $ "if condition must evaluate to a boolean, got: " ++ show condVal
+sfIf [condExpr, thenExpr, elseExpr] = do
+    condVal <- eval condExpr
+    case condVal of
+        VBool True -> eval thenExpr
+        VBool False -> eval elseExpr
         _ -> throwError $ "if condition must evaluate to a boolean, got: " ++ show condVal
 sfIf bad = throwError $ "if expects a condition and a then expression " ++ show bad
 
