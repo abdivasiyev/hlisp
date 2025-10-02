@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module HLisp.Lexer (
-  Parser,
-  tokenize,
+    Parser,
+    tokenize,
 ) where
 
 import Data.Text (Text)
@@ -65,10 +65,10 @@ parseBool = (Tok.TokBool True <$ symbol' "#t") <|> (Tok.TokBool False <$ symbol'
 -- | Parses a number (integer)
 parseNumber :: Parser Tok.Token
 parseNumber = lexeme . try $ do
-  sign <- optional (char '-')
-  digits <- some digitChar
-  let num = read digits :: Integer
-  pure . Tok.TokNumber . maybe num (const (negate num)) $ sign
+    sign <- optional (char '-')
+    digits <- some digitChar
+    let num = read digits :: Integer
+    pure . Tok.TokNumber . maybe num (const (negate num)) $ sign
 
 -- | Parses a string literal enclosed in double quotes
 parseString :: Parser Tok.Token
@@ -77,26 +77,26 @@ parseString = Tok.TokString . T.pack <$> (char '"' *> manyTill L.charLiteral (ch
 -- | Parses a symbol (identifier)
 parseSymbol :: Parser Tok.Token
 parseSymbol = Tok.TokSymbol . T.pack <$> lexeme ((:) <$> initial <*> many subsequent)
- where
-  initial = letterChar <|> oneOf ("!$%&*/:<=>?^_~+-" :: String)
-  subsequent = initial <|> digitChar <|> oneOf (".@" :: String)
+  where
+    initial = letterChar <|> oneOf ("!$%&*/:<=>?^_~+-" :: String)
+    subsequent = initial <|> digitChar <|> oneOf (".@" :: String)
 
 -- | Parses a single token
 parseToken :: Parser Tok.Token
 parseToken =
-  choice
-    [ parseLParen
-    , parseRParen
-    , parseQuote
-    , parseBackQuote
-    , parseCommaAt
-    , parseComma
-    , parseDot
-    , parseBool
-    , parseNumber
-    , parseString
-    , parseSymbol
-    ]
+    choice
+        [ parseLParen
+        , parseRParen
+        , parseQuote
+        , parseBackQuote
+        , parseCommaAt
+        , parseComma
+        , parseDot
+        , parseBool
+        , parseNumber
+        , parseString
+        , parseSymbol
+        ]
 
 -- | Parses a list of tokens from the input text
 tokenize :: Text -> Either (ParseErrorBundle Text Void) [Tok.Token]

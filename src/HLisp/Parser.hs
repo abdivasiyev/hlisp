@@ -17,14 +17,14 @@ import Text.Megaparsec
 type Parser = Parsec Void [T.Token]
 
 data Expr
-    = ESymbol Text
-    | ENumber Integer
-    | EString Text
-    | EBool Bool
-    | EList [Expr]
-    | EDotted [Expr] Expr
-    | EUnquote Expr
-    | EUnquoteSplicing Expr
+    = ESymbol !Text
+    | ENumber !Integer
+    | EString !Text
+    | EBool !Bool
+    | EList ![Expr]
+    | EDotted ![Expr] !Expr
+    | EUnquote !Expr
+    | EUnquoteSplicing !Expr
     deriving (Eq, Show, Ord)
 
 satisfyTok :: (T.Token -> Maybe a) -> Parser a

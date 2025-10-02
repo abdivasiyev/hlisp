@@ -42,16 +42,16 @@ instance Ord Primitive where
     compare _ _ = EQ
 
 data Value
-    = VSymbol Text
-    | VNumber Integer
-    | VString Text
-    | VBool Bool
-    | VDotted Value Value
-    | VUnquote Value
-    | VUnquoteSplicing Value
-    | VList [Value]
-    | VClosure [Text] [Expr] Env
-    | VPrimitive Primitive
+    = VSymbol !Text
+    | VNumber !Integer
+    | VString !Text
+    | VBool !Bool
+    | VDotted !Value !Value
+    | VUnquote !Value
+    | VUnquoteSplicing !Value
+    | VList ![Value]
+    | VClosure ![Text] ![Expr] !Env
+    | VPrimitive !Primitive
     | VNil
     deriving (Show, Eq, Ord)
 
@@ -102,7 +102,7 @@ eval = \case
     EList (ESymbol symbol : args) -> do
         case M.lookup symbol specialForms of
             Just form -> form args
-            otherwise -> do
+            Nothing -> do
                 fnVal <- eval (ESymbol symbol)
                 argVals <- mapM eval args
                 apply fnVal argVals
@@ -144,106 +144,114 @@ lookupVar var = do
         Just val -> return val
         Nothing -> throwError $ "Unbound variable: " ++ show var
 
+addition :: Value
+addition = VPrimitive . Primitive $ \case
+    [VNumber x, VNumber y] -> return $ VNumber (x + y)
+    args -> throwError $ "invalid arguments to +: " ++ show args
+
+subtraction :: Value
+subtraction = VPrimitive . Primitive $ \case
+    [VNumber x, VNumber y] -> return $ VNumber (x - y)
+    args -> throwError $ "invalid arguments to -: " ++ show args
+
+multiplication :: Value
+multiplication = VPrimitive . Primitive $ \case
+    [VNumber x, VNumber y] -> return $ VNumber (x * y)
+    args -> throwError $ "invalid arguments to *: " ++ show args
+
+division :: Value
+division = VPrimitive . Primitive $ \case
+    [VNumber x, VNumber y] -> return $ VNumber (x `div` y)
+    args -> throwError $ "invalid arguments to /: " ++ show args
+
+numbersEqual :: Value
+numbersEqual = VPrimitive . Primitive $ \case
+    [] -> throwError "argument arity for ="
+    [x] -> throwError $ "argument arity for =" ++ show x
+    (VNumber x : args) -> return $ VBool (all (== VNumber x) args)
+    args -> throwError $ "argument arity for =" ++ show args
+
+eq :: Value
+eq = VPrimitive . Primitive $ \case
+    [x, y] -> return $ VBool (x == y)
+    args -> throwError $ "Invalid arguments to =: " ++ show args
+
+gt :: Value
+gt = VPrimitive . Primitive $ \case
+    [x, y] -> return $ VBool (x > y)
+    args -> throwError $ "Invalid arguments to >: " ++ show args
+
+lt :: Value
+lt = VPrimitive . Primitive $ \case
+    [x, y] -> return $ VBool (x < y)
+    args -> throwError $ "Invalid arguments to <: " ++ show args
+
+list :: Value
+list = VPrimitive . Primitive $ \args -> return $ VList args
+
+len :: Value
+len = VPrimitive . Primitive $ \case
+    [VList xs] -> return $ VNumber (fromIntegral $ length xs)
+    [bad] -> throwError $ "length expects a list, got: " ++ show bad
+    args -> throwError $ "length arity error, got: " ++ show args
+
+car :: Value
+car = VPrimitive . Primitive $ \case
+    [VList (x : _)] -> return x
+    [VList []] -> fail "car called on empty list"
+    [bad] -> throwError $ "car expects a list, got: " ++ show bad
+    args -> throwError $ "car arity error, got: " ++ show args
+
+cdr :: Value
+cdr = VPrimitive . Primitive $ \case
+    [VList (_ : xs)] -> return $ VList xs
+    [VList []] -> fail "cdr called on empty list"
+    [bad] -> throwError $ "cdr expects a list, got: " ++ show bad
+    args -> throwError $ "cdr arity error, got: " ++ show args
+
+cons :: Value
+cons = VPrimitive . Primitive $ \case
+    [x, VList xs] -> return $ VList (x : xs)
+    [_, bad] -> throwError $ "cons expects a list as second argument, got: " ++ show bad
+    args -> throwError $ "cons arity error, got: " ++ show args
+
+pprint :: Value
+pprint = VPrimitive . Primitive $ \case
+    [v] -> liftIO (print v) >> pure VNil
+    args -> throwError $ "print expects a single argument, got: " ++ show args
+
+nil :: Value
+nil = VPrimitive . Primitive $ \case
+    [] -> return VNil
+    args -> throwError $ "nil expects no arguments, got: " ++ show args
+
+nth :: Value
+nth = VPrimitive . Primitive $ \case
+    [VNumber n, VList xs] ->
+        if n < 0 || fromIntegral n >= length xs
+            then throwError $ "nth: index out of bounds: " ++ show n
+            else return $ xs !! fromIntegral n
+    args -> throwError $ "nth arity error, got: " ++ show args
+
 primitives :: [(Text, Value)]
 primitives =
-    [
-        ( "+"
-        , VPrimitive . Primitive $ \case
-            [VNumber x, VNumber y] -> return $ VNumber (x + y)
-            args -> throwError $ "Invalid arguments to +: " ++ show args
-        )
-    ,
-        ( "-"
-        , VPrimitive . Primitive $ \case
-            [VNumber x, VNumber y] -> return $ VNumber (x - y)
-            args -> throwError $ "Invalid arguments to -: " ++ show args
-        )
-    ,
-        ( "*"
-        , VPrimitive . Primitive $ \case
-            [VNumber x, VNumber y] -> return $ VNumber (x * y)
-            args -> throwError $ "Invalid arguments to *: " ++ show args
-        )
-    ,
-        ( "/"
-        , VPrimitive . Primitive $ \case
-            [VNumber x, VNumber y] ->
-                if y == 0
-                    then fail "Division by zero"
-                    else return $ VNumber (x `div` y)
-            args -> throwError $ "Invalid arguments to /: " ++ show args
-        )
-    ,
-        ( "="
-        , VPrimitive . Primitive $ \case
-            [x, y] -> return $ VBool (x == y)
-            args -> throwError $ "Invalid arguments to =: " ++ show args
-        )
-    ,
-        ( "eq"
-        , VPrimitive . Primitive $ \case
-            [x, y] -> return $ VBool (x == y)
-            args -> throwError $ "Invalid arguments to =: " ++ show args
-        )
-    ,
-        ( ">"
-        , VPrimitive . Primitive $ \case
-            [x, y] -> return $ VBool (x > y)
-            args -> throwError $ "Invalid arguments to >: " ++ show args
-        )
-    ,
-        ( "<"
-        , VPrimitive . Primitive $ \case
-            [x, y] -> return $ VBool (x < y)
-            args -> throwError $ "Invalid arguments to <: " ++ show args
-        )
-    ,
-        ( "list"
-        , VPrimitive . Primitive $ \args -> return $ VList args
-        )
-    ,
-        ( "length"
-        , VPrimitive . Primitive $ \case
-            [VList xs] -> return $ VNumber (fromIntegral $ length xs)
-            [bad] -> throwError $ "length expects a list, got: " ++ show bad
-            args -> throwError $ "length arity error, got: " ++ show args
-        )
-    ,
-        ( "car"
-        , VPrimitive . Primitive $ \case
-            [VList (x : _)] -> return x
-            [VList []] -> fail "car called on empty list"
-            [bad] -> throwError $ "car expects a list, got: " ++ show bad
-            args -> throwError $ "car arity error, got: " ++ show args
-        )
-    ,
-        ( "cdr"
-        , VPrimitive . Primitive $ \case
-            [VList (_ : xs)] -> return $ VList xs
-            [VList []] -> fail "cdr called on empty list"
-            [bad] -> throwError $ "cdr expects a list, got: " ++ show bad
-            args -> throwError $ "cdr arity error, got: " ++ show args
-        )
-    ,
-        ( "cons"
-        , VPrimitive . Primitive $ \case
-            [x, VList xs] -> return $ VList (x : xs)
-            [_, bad] -> throwError $ "cons expects a list as second argument, got: " ++ show bad
-            args -> throwError $ "cons arity error, got: " ++ show args
-        )
-    ,
-        ( "list-length"
-        , VPrimitive . Primitive $ \case
-            [VList xs] -> return $ VNumber (fromIntegral $ length xs)
-            [bad] -> throwError $ "list-length expects a list, got: " ++ show bad
-            args -> throwError $ "list-length arity error, got: " ++ show args
-        )
-    ,
-        ( "print"
-        , VPrimitive . Primitive $ \args -> case args of
-            [v] -> liftIO (print v) >> pure VNil
-            _ -> throwError $ "print expects a single argument, got: " ++ show args
-        )
+    [ ("+", addition)
+    , ("-", subtraction)
+    , ("*", multiplication)
+    , ("/", division)
+    , ("=", numbersEqual)
+    , ("eq", eq)
+    , ("<", lt)
+    , (">", gt)
+    , ("list", list)
+    , ("length", len)
+    , ("car", car)
+    , ("cdr", cdr)
+    , ("cons", cons)
+    , ("list-length", len) -- alias for length
+    , ("print", pprint)
+    , ("nil", nil)
+    , ("nth", nth)
     ]
 
 evalQuote :: Expr -> Value
@@ -260,22 +268,74 @@ evalQuote unknown = error $ "Cannot quote unknown expression: " ++ show unknown
 
 sfQuote :: SpecialForm
 sfQuote [expr] = pure (evalQuote expr)
-sfQuote _ = throwError $ "quote expects only 1 argument"
+sfQuote _ = throwError "quote expects only 1 argument"
 
 sfDefvar :: SpecialForm
+sfDefvar [ESymbol name] = do
+    env <- lift get
+    lift $ put (M.insert name VNil env)
+    pure VNil
 sfDefvar [ESymbol name, expr] = do
     val <- eval expr
     env <- lift get
     lift $ put (M.insert name val env)
 
     pure val
-sfDefvar bad = throwError $ "defvar expects a variable name and expression" <> show bad
+sfDefvar bad = throwError $ "defvar expects a variable name and expression " <> show bad
+
+sfSetq :: SpecialForm
+sfSetq [ESymbol name, expr] = do
+    val <- eval expr
+    env <- lift get
+
+    case M.lookup name env of
+        Just _ -> do
+            lift $ put (M.insert name val env)
+            pure val
+        Nothing -> throwError $ "setq: variable not defined: " ++ T.unpack name
+sfSetq bad = throwError $ "setq expects a variable name and expression" <> show bad
+
+sfDefun :: SpecialForm
+sfDefun (ESymbol name : EList args : body) = do
+    let argNames = [n | ESymbol n <- args]
+    env <- lift get
+    let closure = VClosure argNames body env
+    lift $ put (M.insert name closure env)
+    return closure
+sfDefun bad = throwError $ "defun expects a function name, parameter list, and body " ++ show bad
+
+sfReturnFrom :: SpecialForm
+sfReturnFrom [ESymbol name, expr] = do
+    val <- eval expr
+    env <- lift get
+
+    case M.lookup name env of
+        Just _ -> do
+            lift $ put (M.insert name val env)
+            pure val
+        Nothing -> throwError $ "return-from: function not defined: " ++ T.unpack name
+sfReturnFrom bad = throwError $ "return-from expects a function name and expression" ++ show bad
+
+sfIf :: SpecialForm
+sfIf (condExpr : thenExpr) = do
+    condVal <- eval condExpr
+
+    case condVal of
+        VBool True -> eval $ EList thenExpr
+        VBool False -> return VNil
+        _ -> throwError $ "if condition must evaluate to a boolean, got: " ++ show condVal
+sfIf bad = throwError $ "if expects a condition and a then expression " ++ show bad
 
 specialForms :: M.Map Text SpecialForm
-specialForms = M.fromList
-    [ ("defvar", sfDefvar)
-    , ("quote", sfQuote)
-    ]
+specialForms =
+    M.fromList
+        [ ("defvar", sfDefvar)
+        , ("quote", sfQuote)
+        , ("setq", sfSetq)
+        , ("defun", sfDefun)
+        , ("return-from", sfReturnFrom)
+        , ("if", sfIf)
+        ]
 
 -- | Run the evaluator with an initial environment and return the result
 runEval :: Env -> EvalT a -> IO (Either String a, Env)
